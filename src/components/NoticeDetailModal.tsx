@@ -138,7 +138,7 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={copyOriginalLink}
-                            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600"
+                            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800"
                             title="게시물 원본 링크 복사"
                         >
                             <LinkIcon size={20} />
@@ -167,7 +167,7 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
                         <div className="space-y-6 bg-white p-4"> {/* Added bg-white and p-4 for clean capture */}
                             <div className="border-b pb-4 mb-4">
                                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{notice.title}</h2>
-                                <div className="flex items-center text-sm text-gray-500 space-x-4">
+                                <div className="flex items-center text-sm text-gray-700 space-x-4">
                                     <span>{notice.author}</span>
                                     <span>{notice.date}</span>
                                     <span>{SCHOOLS.find(s => s.id === notice.schoolId)?.name}</span>
@@ -201,7 +201,7 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
                                 dangerouslySetInnerHTML={{ __html: detail.content }}
                             />
 
-                            <div className="mt-8 pt-4 border-t text-right text-sm text-gray-400">
+                            <div className="mt-8 pt-4 border-t text-right text-sm text-gray-600">
                                 출처: {SCHOOLS.find(s => s.id === notice.schoolId)?.name} 공지사항
                             </div>
                         </div>
@@ -213,7 +213,7 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
                     <button
                         onClick={downloadImage}
                         disabled={!detail}
-                        className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-gray-900 bg-white border border-gray-400 rounded-md hover:bg-gray-50 transition-colors"
                     >
                         <Download size={18} />
                         이미지로 저장

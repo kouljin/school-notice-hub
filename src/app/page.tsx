@@ -218,7 +218,7 @@ export default function Home() {
             </h2>
             <button
               onClick={() => fetchNotices(selectedSchoolId, currentPage, searchKeyword, true)}
-              className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+              className="p-2 text-gray-700 hover:text-blue-700 transition-colors"
               title="Refresh"
             >
               <Loader2 size={18} className={loading ? 'animate-spin' : ''} />
@@ -244,7 +244,7 @@ export default function Home() {
                 이전
               </button>
 
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-800">
                 Page <strong className="text-gray-900">{currentPage}</strong> of {totalPages}
               </span>
 

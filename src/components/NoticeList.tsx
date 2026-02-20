@@ -25,7 +25,7 @@ const NoticeList = React.memo(function NoticeList({ notices, loading, onSelectNo
     }
 
     if (notices.length === 0) {
-        return <div className="text-center py-10 text-gray-500">No notices found.</div>;
+        return <div className="text-center py-10 text-gray-600">No notices found.</div>;
     }
 
     return (
@@ -39,7 +39,7 @@ const NoticeList = React.memo(function NoticeList({ notices, loading, onSelectNo
                         <h3 className="text-lg font-medium text-gray-900 mb-2 hover:text-blue-600 transition-colors">
                             {notice.title}
                         </h3>
-                        <div className="flex items-center text-sm text-gray-500 space-x-4">
+                        <div className="flex items-center text-sm text-gray-700 space-x-4">
                             <span className="flex items-center gap-1">
                                 <User size={14} />
                                 {notice.author}
