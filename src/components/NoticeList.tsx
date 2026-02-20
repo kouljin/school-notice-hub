@@ -1,3 +1,4 @@
+import React from 'react';
 import { Notice } from '@/types';
 import { Calendar, User } from 'lucide-react';
 
@@ -7,7 +8,7 @@ interface NoticeListProps {
     onSelectNotice: (notice: Notice) => void;
 }
 
-export default function NoticeList({ notices, loading, onSelectNotice }: NoticeListProps) {
+const NoticeList = React.memo(function NoticeList({ notices, loading, onSelectNotice }: NoticeListProps) {
     if (loading) {
         return (
             <div className="space-y-4">
@@ -54,4 +55,6 @@ export default function NoticeList({ notices, loading, onSelectNotice }: NoticeL
             ))}
         </div>
     );
-}
+});
+
+export default NoticeList;

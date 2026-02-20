@@ -2,12 +2,30 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+// Revalidate is not natively supported for POST requests.
+// Since the frontend POSTs to this endpoint, Next.js App Router does not cache POST requests by default.
+// We can either change the frontend to use GET for details or implement custom memory caching.
+// For now, I will add memory caching since the external site expects POST or we are sending form data, wait we are sending a POST from frontend.
+
+// Actually our frontend does: axios.post('/api/notice-detail', notice.linkParams)
+// I will implement a simple in-memory cache variable here.
+
+const detailCache: Record<string, { data: any, timestamp: number }> = {};
+const CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
+
 export async function POST(request: Request) {
     const body = await request.json();
     const { sysId, nttSn, mi, bbsId } = body;
 
     if (!sysId || !nttSn || !mi || !bbsId) {
         return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    }
+
+    const cacheKey = `${sysId}-${nttSn}-${mi}-${bbsId}`;
+    const cached = detailCache[cacheKey];
+    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION_MS)) {
+        console.log(`[Cache Hit] notice-detail: ${cacheKey}`);
+        return NextResponse.json(cached.data);
     }
 
     try {
@@ -82,7 +100,15 @@ export async function POST(request: Request) {
 
         let contentHtml = $('.bbs_ViewA').html() || $('.subContent').html();
 
-        return NextResponse.json({ content: contentHtml, attachments });
+        const responseData = { content: contentHtml, attachments };
+
+        // Save to cache
+        detailCache[cacheKey] = {
+            data: responseData,
+            timestamp: Date.now()
+        };
+
+        return NextResponse.json(responseData);
 
     } catch (error) {
         console.error('Error fetching notice detail:', error);

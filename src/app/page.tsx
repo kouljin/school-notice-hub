@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { SCHOOLS } from '@/const/schools';
 import { Notice, School } from '@/types';
@@ -9,6 +9,10 @@ import NoticeList from '@/components/NoticeList';
 import NoticeDetailModal from '@/components/NoticeDetailModal';
 import AddSchoolModal from '@/components/AddSchoolModal';
 import { Loader2 } from 'lucide-react';
+
+// Simple client-side cache for notices
+const noticeCache: Record<string, { data: any, timestamp: number }> = {};
+const CACHE_TTL = 1000 * 60; // 1 minute client side cache
 
 export default function Home() {
   const [customSchools, setCustomSchools] = useState<School[]>([]);
@@ -68,23 +72,15 @@ export default function Home() {
     }
   }, [currentPage, searchKeyword]);
 
-  const fetchNotices = async (schoolId: string, page: number, search: string) => {
+  const fetchNotices = async (schoolId: string, page: number, search: string, forceRefresh = false) => {
     if (!schoolId) return;
 
     setLoading(true);
-    setNotices([]);
+    // Don't clear notices immediately to avoid flicker if we have cached data
 
     try {
       const params: any = { schoolId, page, search };
 
-      // If it's a custom school, we need to pass the params to the API
-      // because the API only knows about hardcoded SCHOOLS.
-      // We look up the school in our allSchools state.
-      // Note: We need to ensure allSchools is up to date. Using functional state or ref is better if it changes often,
-      // but here it changes rarely.
-      // However, inside useEffect/callbacks, stale state might be an issue.
-      // Let's assume allSchools is fresh enough or use a lookup.
-      // Actually, we can just look at customSchools and SCHOOLS directly.
       const targetSchool = [...SCHOOLS, ...customSchools].find(s => s.id === schoolId);
 
       if (targetSchool) {
@@ -93,58 +89,89 @@ export default function Home() {
         params.bbsId = targetSchool.bbsId;
       }
 
+      const cacheKey = JSON.stringify(params);
+      const cached = noticeCache[cacheKey];
+
+      if (!forceRefresh && cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        setNotices(cached.data.notices);
+        if (cached.data.pagination) {
+          setTotalPages(cached.data.pagination.totalPages);
+          setCurrentPage(cached.data.pagination.currentPage);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // If no cache hit, we can clear notices to show loading state properly
+      if (!cached) {
+        setNotices([]);
+      }
+
       const response = await axios.get(`/api/notices`, { params });
-      setNotices(response.data.notices);
-      if (response.data.pagination) {
-        setTotalPages(response.data.pagination.totalPages);
-        setCurrentPage(response.data.pagination.currentPage);
+
+      const responseData = response.data;
+      noticeCache[cacheKey] = {
+        data: responseData,
+        timestamp: Date.now()
+      };
+
+      setNotices(responseData.notices);
+      if (responseData.pagination) {
+        setTotalPages(responseData.pagination.totalPages);
+        setCurrentPage(responseData.pagination.currentPage);
       }
     } catch (error) {
       console.error('Failed to fetch notices:', error);
+      setNotices([]); // clear on error
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSchoolSelect = (schoolId: string) => {
+  const handleSchoolSelect = useCallback((schoolId: string) => {
     setSelectedSchoolId(schoolId);
-  };
+  }, []);
 
-  const handleOpenAddSchoolModal = () => {
+  const handleOpenAddSchoolModal = useCallback(() => {
     setIsAddSchoolModalOpen(true);
-  };
+  }, []);
 
-  const handleAddSchool = (newSchool: School) => {
-    // Check if already exists
-    if (allSchools.some(s => s.id === newSchool.id)) {
-      alert('School already exists!');
-      return;
-    }
-
-    const newCustomSchools = [...customSchools, newSchool];
-    setCustomSchools(newCustomSchools);
-    localStorage.setItem('customSchools', JSON.stringify(newCustomSchools));
-
-    // Select the new school
+  const handleAddSchool = useCallback((newSchool: School) => {
+    setAllSchools(prev => {
+      if (prev.some(s => s.id === newSchool.id)) {
+        alert('School already exists!');
+        return prev;
+      }
+      return [...prev, newSchool];
+    });
+    setCustomSchools(prev => {
+      if (prev.some(s => s.id === newSchool.id)) return prev;
+      const newCustomSchools = [...prev, newSchool];
+      localStorage.setItem('customSchools', JSON.stringify(newCustomSchools));
+      return newCustomSchools;
+    });
     setSelectedSchoolId(newSchool.id);
-  };
+  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setSearchKeyword(searchInput);
     setCurrentPage(1); // Reset to page 1 on search
-  };
+  }, [searchInput]);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
+  const handlePageChange = useCallback((newPage: number) => {
+    setTotalPages(prevPages => {
+      if (newPage >= 1 && newPage <= prevPages) {
+        setCurrentPage(newPage);
+      }
+      return prevPages;
+    })
+  }, []);
 
-  const handleNoticeSelect = (notice: Notice) => {
+  const handleNoticeSelect = useCallback((notice: Notice) => {
     setSelectedNotice(notice);
     setIsModalOpen(true);
-  };
+  }, []);
 
   const selectedSchoolName = allSchools.find(s => s.id === selectedSchoolId)?.name;
 
@@ -190,7 +217,7 @@ export default function Home() {
               {selectedSchoolName} Notices
             </h2>
             <button
-              onClick={() => fetchNotices(selectedSchoolId, currentPage, searchKeyword)}
+              onClick={() => fetchNotices(selectedSchoolId, currentPage, searchKeyword, true)}
               className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
               title="Refresh"
             >

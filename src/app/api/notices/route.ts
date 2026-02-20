@@ -3,6 +3,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { SCHOOLS } from '@/const/schools';
 
+export const revalidate = 60; // Cache for 60 seconds
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const schoolId = searchParams.get('schoolId');
