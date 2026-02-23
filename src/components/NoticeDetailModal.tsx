@@ -183,9 +183,8 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
                                     {detail.attachments.map((file, idx) => (
                                         <a
                                             key={idx}
-                                            href={`/api/download?url=${encodeURIComponent(file.href)}&filename=${encodeURIComponent(file.name)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                            href={`/api/download/${encodeURIComponent(file.name)}?url=${encodeURIComponent(file.href)}`}
+                                            download={file.name}
                                             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline truncate py-1"
                                         >
                                             <Download size={14} className="flex-shrink-0" />

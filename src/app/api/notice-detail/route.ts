@@ -97,8 +97,18 @@ export async function POST(request: Request) {
         $('.btns').remove();
         $('.bbsV_atchmnfl').remove(); // Remove the school's broken attachment UI containing the xFreeUploader placeholder
         $('.bbsV_prne').remove(); // Remove prev/next links
+        // Convert all image relative paths to absolute paths to fix broken images
+        const contentArea = $('.bbs_ViewA').length ? $('.bbs_ViewA') : $('.subContent');
+        contentArea.find('img').each((_, img) => {
+            const src = $(img).attr('src');
+            if (src && src.startsWith('/')) {
+                $(img).attr('src', `https://school.gyo6.net${src}`);
+            } else if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+                $(img).attr('src', `https://school.gyo6.net/${sysId}/na/ntt/${src}`);
+            }
+        });
 
-        let contentHtml = $('.bbs_ViewA').html() || $('.subContent').html();
+        let contentHtml = contentArea.html() || '';
 
         const responseData = { content: contentHtml, attachments };
 

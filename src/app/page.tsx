@@ -8,7 +8,9 @@ import SchoolTabs from '@/components/SchoolTabs';
 import NoticeList from '@/components/NoticeList';
 import NoticeDetailModal from '@/components/NoticeDetailModal';
 import AddSchoolModal from '@/components/AddSchoolModal';
-import { Loader2 } from 'lucide-react';
+import EditSchoolModal from '@/components/EditSchoolModal';
+import PasswordModal from '@/components/PasswordModal';
+import { Loader2, Settings } from 'lucide-react';
 
 // Simple client-side cache for notices
 const noticeCache: Record<string, { data: any, timestamp: number }> = {};
@@ -19,11 +21,17 @@ export default function Home() {
   const [allSchools, setAllSchools] = useState<School[]>(SCHOOLS);
 
   const [selectedSchoolId, setSelectedSchoolId] = useState(SCHOOLS[0].id);
+  const [selectedBoardId, setSelectedBoardId] = useState('notice'); // default board id
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddSchoolModalOpen, setIsAddSchoolModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Password protection state
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'add' | 'edit' | null>(null);
 
   // State for pagination and search
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,7 +57,15 @@ export default function Home() {
 
   useEffect(() => {
     // Merge default and custom schools
-    setAllSchools([...SCHOOLS, ...customSchools]);
+    // If a custom school has same ID as default, it should replace it
+    const defaultSchools = SCHOOLS.map(s => {
+      const customOverride = customSchools.find(c => c.id === s.id);
+      return customOverride ? customOverride : s;
+    });
+    // Add custom schools that are not in default SCHOOLS
+    const newCustomSchools = customSchools.filter(c => !SCHOOLS.some(s => s.id === c.id));
+
+    setAllSchools([...defaultSchools, ...newCustomSchools]);
   }, [customSchools]);
 
   useEffect(() => {
@@ -57,36 +73,49 @@ export default function Home() {
     setCurrentPage(1);
     setSearchKeyword('');
     setSearchInput('');
-    // If selectedSchoolId is not in the new list (e.g. deleted), revert to first
-    // But for now we don't delete. 
-    // We only fetch if selectedSchoolId is valid.
-    if (selectedSchoolId) {
-      fetchNotices(selectedSchoolId, 1, '');
+    // Reset board to notice or first available board when school changes
+    const targetSchool = customSchools.find(s => s.id === selectedSchoolId) || SCHOOLS.find(s => s.id === selectedSchoolId);
+    let initialBoardId = 'notice';
+    if (targetSchool?.boards && targetSchool.boards.length > 0) {
+      // if the target school has boards, but not 'notice', select the first one
+      if (!targetSchool.boards.find(b => b.id === 'notice')) {
+        initialBoardId = targetSchool.boards[0].id;
+      }
     }
-  }, [selectedSchoolId]);
+
+    // Only fetch if selectedSchoolId is valid. We don't fetch here if we just changed board because
+    // the board id update will trigger a re-fetch in the other array if needed.
+    // However, if we change school, we need to ensure the board id also changes.
+    // If the board id is the SAME, the board id effect won't run, so we need to fetch here.
+    if (selectedSchoolId) {
+      setSelectedBoardId(initialBoardId);
+      // fetchNotices is called by an effect observing selectedBoardId
+    }
+  }, [selectedSchoolId, customSchools]); // add customSchools if it updates slowly
 
   useEffect(() => {
-    // Fetch when page or searchKeyword changes (but NOT on initial render as the above effect handles it)
-    if (selectedSchoolId) {
-      fetchNotices(selectedSchoolId, currentPage, searchKeyword);
+    // Fetch when board, page or searchKeyword changes
+    if (selectedSchoolId && selectedBoardId) {
+      fetchNotices(selectedSchoolId, selectedBoardId, currentPage, searchKeyword);
     }
-  }, [currentPage, searchKeyword]);
+  }, [selectedBoardId, currentPage, searchKeyword]);
 
-  const fetchNotices = async (schoolId: string, page: number, search: string, forceRefresh = false) => {
-    if (!schoolId) return;
+  const fetchNotices = async (schoolId: string, boardId: string, page: number, search: string, forceRefresh = false) => {
+    if (!schoolId || !boardId) return;
 
     setLoading(true);
     // Don't clear notices immediately to avoid flicker if we have cached data
 
     try {
-      const params: any = { schoolId, page, search };
+      const params: any = { schoolId, boardId, page, search };
 
-      const targetSchool = [...SCHOOLS, ...customSchools].find(s => s.id === schoolId);
+      const targetSchool = customSchools.find(s => s.id === schoolId) || SCHOOLS.find(s => s.id === schoolId);
 
       if (targetSchool) {
+        const targetBoard = targetSchool.boards?.find(b => b.id === boardId);
         params.sysId = targetSchool.sysId;
-        params.mi = targetSchool.mi;
-        params.bbsId = targetSchool.bbsId;
+        params.mi = targetBoard ? targetBoard.mi : targetSchool.mi;
+        params.bbsId = targetBoard ? targetBoard.bbsId : targetSchool.bbsId;
       }
 
       const cacheKey = JSON.stringify(params);
@@ -133,17 +162,25 @@ export default function Home() {
   }, []);
 
   const handleOpenAddSchoolModal = useCallback(() => {
-    setIsAddSchoolModalOpen(true);
+    setPendingAction('add');
+    setIsPasswordModalOpen(true);
   }, []);
 
+  const handleOpenEditModal = useCallback(() => {
+    setPendingAction('edit');
+    setIsPasswordModalOpen(true);
+  }, []);
+
+  const handlePasswordSuccess = useCallback(() => {
+    setIsPasswordModalOpen(false);
+    if (pendingAction === 'add') {
+      setIsAddSchoolModalOpen(true);
+    } else if (pendingAction === 'edit') {
+      setIsEditModalOpen(true);
+    }
+  }, [pendingAction]);
+
   const handleAddSchool = useCallback((newSchool: School) => {
-    setAllSchools(prev => {
-      if (prev.some(s => s.id === newSchool.id)) {
-        alert('School already exists!');
-        return prev;
-      }
-      return [...prev, newSchool];
-    });
     setCustomSchools(prev => {
       if (prev.some(s => s.id === newSchool.id)) return prev;
       const newCustomSchools = [...prev, newSchool];
@@ -152,6 +189,27 @@ export default function Home() {
     });
     setSelectedSchoolId(newSchool.id);
   }, []);
+
+  const handleEditSchool = useCallback((updatedSchool: School) => {
+    setCustomSchools(prev => {
+      // Find and update if exists, otherwise append
+      const existingIndex = prev.findIndex(s => s.id === updatedSchool.id);
+      let newCustomSchools;
+
+      if (existingIndex >= 0) {
+        newCustomSchools = [...prev];
+        newCustomSchools[existingIndex] = updatedSchool;
+      } else {
+        newCustomSchools = [...prev, updatedSchool];
+      }
+
+      localStorage.setItem('customSchools', JSON.stringify(newCustomSchools));
+      return newCustomSchools;
+    });
+
+    // Also trigger a refresh for the current board
+    fetchNotices(updatedSchool.id, selectedBoardId, 1, searchKeyword, true);
+  }, [selectedBoardId, searchKeyword]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -173,14 +231,15 @@ export default function Home() {
     setIsModalOpen(true);
   }, []);
 
-  const selectedSchoolName = allSchools.find(s => s.id === selectedSchoolId)?.name;
+  const selectedNoticeName = allSchools.find(s => s.id === selectedSchoolId)?.boards?.find(b => b.id === selectedBoardId)?.name || 'Notices';
+  const targetSchoolForUI = allSchools.find(s => s.id === selectedSchoolId);
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            🏫 School Notice Hub
+            🏫<span className="text-blue-600">청도학교 정보</span>
           </h1>
         </div>
         <div className="max-w-4xl mx-auto px-4">
@@ -212,12 +271,43 @@ export default function Home() {
         </form>
 
         <div className="bg-white rounded-lg shadow min-h-[500px] p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              {selectedSchoolName} Notices
+          {/* Board Tabs (Pills) */}
+          {targetSchoolForUI && targetSchoolForUI.boards && targetSchoolForUI.boards.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
+              {targetSchoolForUI.boards.map(board => (
+                <button
+                  key={board.id}
+                  onClick={() => {
+                    setSelectedBoardId(board.id);
+                    setCurrentPage(1); // Reset page on board change
+                    setSearchKeyword('');
+                    setSearchInput('');
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${selectedBoardId === board.id
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                    }`}
+                >
+                  {board.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mb-4 mt-2">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-sm">{targetSchoolForUI?.name}</span>
+              {selectedNoticeName}
+              <button
+                onClick={handleOpenEditModal}
+                className="ml-2 text-gray-400 hover:text-blue-600 transition-colors"
+                title="게시판 링크 수정"
+              >
+                <Settings size={16} />
+              </button>
             </h2>
             <button
-              onClick={() => fetchNotices(selectedSchoolId, currentPage, searchKeyword, true)}
+              onClick={() => fetchNotices(selectedSchoolId, selectedBoardId, currentPage, searchKeyword, true)}
               className="p-2 text-gray-700 hover:text-blue-700 transition-colors"
               title="Refresh"
             >
@@ -272,6 +362,19 @@ export default function Home() {
         isOpen={isAddSchoolModalOpen}
         onClose={() => setIsAddSchoolModalOpen(false)}
         onAdd={handleAddSchool}
+      />
+
+      <EditSchoolModal
+        isOpen={isEditModalOpen}
+        school={targetSchoolForUI || null}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleEditSchool}
+      />
+
+      <PasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        onSuccess={handlePasswordSuccess}
       />
     </main>
   );

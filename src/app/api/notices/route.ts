@@ -36,8 +36,8 @@ export async function GET(request: Request) {
     try {
         const url = `https://school.gyo6.net/${school.sysId}/na/ntt/selectNttList.do`;
         const params: any = {
-            mi: school.mi,
-            bbsId: school.bbsId,
+            mi: mi || school.mi,
+            bbsId: bbsId || school.bbsId,
             currPage: page,
         };
 
