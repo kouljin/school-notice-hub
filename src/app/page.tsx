@@ -39,6 +39,9 @@ export default function Home() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchInput, setSearchInput] = useState(''); // input value
 
+  // New notices indicator status
+  const [schoolStatus, setSchoolStatus] = useState<Record<string, Record<string, boolean>>>({});
+
   useEffect(() => {
     // Load custom schools from localStorage
     const saved = localStorage.getItem('customSchools');
@@ -92,6 +95,30 @@ export default function Home() {
       // fetchNotices is called by an effect observing selectedBoardId
     }
   }, [selectedSchoolId, customSchools]); // add customSchools if it updates slowly
+
+  useEffect(() => {
+    // Fetch new notice statuses for all schools
+    const fetchStatuses = async () => {
+      if (allSchools.length === 0) return;
+      try {
+        const response = await fetch('/api/notices/status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ schools: allSchools }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSchoolStatus(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch school statuses', error);
+      }
+    };
+
+    fetchStatuses();
+  }, [allSchools]);
 
   useEffect(() => {
     // Fetch when board, page or searchKeyword changes
@@ -248,6 +275,7 @@ export default function Home() {
             selectedSchoolId={selectedSchoolId}
             onSelectSchool={handleSchoolSelect}
             onAddSchool={handleOpenAddSchoolModal}
+            schoolStatus={schoolStatus}
           />
         </div>
       </header>
