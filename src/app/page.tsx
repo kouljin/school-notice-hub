@@ -121,11 +121,11 @@ export default function Home() {
   }, [allSchools]);
 
   useEffect(() => {
-    // Fetch when board, page or searchKeyword changes
+    // Fetch when school, board, page or searchKeyword changes
     if (selectedSchoolId && selectedBoardId) {
       fetchNotices(selectedSchoolId, selectedBoardId, currentPage, searchKeyword);
     }
-  }, [selectedBoardId, currentPage, searchKeyword]);
+  }, [selectedSchoolId, selectedBoardId, currentPage, searchKeyword]);
 
   const fetchNotices = async (schoolId: string, boardId: string, page: number, search: string, forceRefresh = false) => {
     if (!schoolId || !boardId) return;
@@ -237,6 +237,21 @@ export default function Home() {
     // Also trigger a refresh for the current board
     fetchNotices(updatedSchool.id, selectedBoardId, 1, searchKeyword, true);
   }, [selectedBoardId, searchKeyword]);
+
+  const handleDeleteSchool = useCallback((schoolIdToDelete: string) => {
+    setCustomSchools(prev => {
+      const newCustomSchools = prev.filter(s => s.id !== schoolIdToDelete);
+      localStorage.setItem('customSchools', JSON.stringify(newCustomSchools));
+
+      // If the deleted school is currently selected, select the first available school
+      if (selectedSchoolId === schoolIdToDelete) {
+        // Find best fallback. If newCustomSchools is empty, it uses default SCHOOLS.
+        setSelectedSchoolId(newCustomSchools.length > 0 ? newCustomSchools[0].id : SCHOOLS[0].id);
+      }
+
+      return newCustomSchools;
+    });
+  }, [selectedSchoolId]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -397,6 +412,7 @@ export default function Home() {
         school={targetSchoolForUI || null}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleEditSchool}
+        onDelete={handleDeleteSchool}
       />
 
       <PasswordModal

@@ -82,4 +82,15 @@ export const SCHOOLS: SchoolConfig[] = [
       { id: 'family_letter', name: '가정통신문', mi: '152836', bbsId: '33821' }
     ]
   },
+  {
+    id: 'cheongdoes',
+    name: '청도초등학교',
+    sysId: 'cheongdo',
+    mi: '109635',
+    bbsId: '40434',
+    boards: [
+      { id: 'notice', name: '공지사항', mi: '109635', bbsId: '40434' },
+      { id: 'family_letter', name: '가정통신문', mi: '109638', bbsId: '24563' }
+    ]
+  }
 ];

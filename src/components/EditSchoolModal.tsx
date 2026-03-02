@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import { School, Board } from '@/types';
+import { SCHOOLS } from '@/const/schools';
 
 interface EditSchoolModalProps {
     isOpen: boolean;
     school: School | null;
     onClose: () => void;
     onSave: (updatedSchool: School) => void;
+    onDelete?: (schoolId: string) => void;
 }
 
-export default function EditSchoolModal({ isOpen, school, onClose, onSave }: EditSchoolModalProps) {
+export default function EditSchoolModal({ isOpen, school, onClose, onSave, onDelete }: EditSchoolModalProps) {
     const [boards, setBoards] = useState<Board[]>([]);
+
+    // Check if the school is from the default list
+    const isDefaultSchool = school ? SCHOOLS.some(s => s.id === school.id) : false;
 
     useEffect(() => {
         if (school && school.boards) {
@@ -132,22 +137,40 @@ export default function EditSchoolModal({ isOpen, school, onClose, onSave }: Edi
                     </form>
                 </div>
 
-                <div className="p-4 border-t bg-gray-50 flex justify-end gap-2 rounded-b-lg">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-700 hover:bg-gray-200 bg-white border border-gray-300 rounded-md transition-colors"
-                    >
-                        취소
-                    </button>
-                    <button
-                        type="submit"
-                        form="edit-school-form"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                        <Check size={16} />
-                        저장하기
-                    </button>
+                <div className="p-4 border-t bg-gray-50 flex justify-between rounded-b-lg">
+                    {onDelete && !isDefaultSchool ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (window.confirm(`${school.name} 설정 정보를 삭제하시겠습니까?`)) {
+                                    onDelete(school.id);
+                                    onClose();
+                                }
+                            }}
+                            className="px-4 py-2 text-red-600 hover:bg-red-50 bg-white border border-red-200 rounded-md transition-colors"
+                        >
+                            삭제
+                        </button>
+                    ) : (
+                        <div></div>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 bg-white border border-gray-300 rounded-md transition-colors"
+                        >
+                            취소
+                        </button>
+                        <button
+                            type="submit"
+                            form="edit-school-form"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                            <Check size={16} />
+                            저장하기
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
