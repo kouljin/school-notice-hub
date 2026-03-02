@@ -15,8 +15,8 @@ export async function POST(request: Request) {
         const result: Record<string, Record<string, boolean>> = {};
         const now = new Date();
 
-        // 7 days in ms
-        const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+        // 4 days in ms
+        const SEVEN_DAYS = 4 * 24 * 60 * 60 * 1000;
 
         // Create an array of promises to fetch all boards
         const fetchPromises = [];
@@ -41,17 +41,22 @@ export async function POST(request: Request) {
                         let hasNew = false;
 
                         $('.bbs_ListA tbody tr').each((_, element) => {
-                            // Find the 4th td element (index 3) which is usually the date
-                            let dateText = $(element).find('td').eq(3).text().trim();
-                            // Sometimes boards are slightly different, so if length feels completely wrong, fallback to looking for dots or dashes
-                            if (!dateText || dateText.length > 20) {
-                                // some pins have no date, try another col
-                                dateText = $(element).find('td').filter((_, el) => !!$(el).text().match(/\d{4}[\.\-]\d{2}[\.\-]\d{2}/)).first().text().trim();
+                            // td[3] contains "등록일 2026.02.27" — extract date with regex
+                            const tdText = $(element).find('td').eq(3).text().trim();
+                            const dateMatch = tdText.match(/(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+                            let dateText = dateMatch ? dateMatch[1] : '';
+
+                            // Fallback: search all td cells for a date pattern
+                            if (!dateText) {
+                                $(element).find('td').each((_, el) => {
+                                    const m = $(el).text().match(/(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+                                    if (m) { dateText = m[1]; return false; }
+                                });
                             }
 
                             if (!dateText) return;
 
-                            // Normalize date (ko: 2023. 10. 12. -> 2023-10-12)
+                            // Normalize date (ko: 2023.12.31 -> 2023-12-31)
                             const cleanDate = dateText.replace(/\./g, '-').replace(/\s/g, '').replace(/-$/, '');
 
                             const noticeDate = new Date(cleanDate);

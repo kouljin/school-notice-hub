@@ -279,12 +279,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             🏫<span className="text-blue-600">청도학교 정보</span>
           </h1>
         </div>
-        <div className="max-w-4xl mx-auto px-4">
+        <div className="max-w-5xl mx-auto px-4">
           <SchoolTabs
             schools={allSchools}
             selectedSchoolId={selectedSchoolId}
@@ -295,7 +295,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex-1 max-w-4xl mx-auto px-4 py-6 w-full">
+      <div className="flex-1 max-w-5xl mx-auto px-4 py-6 w-full">
         {/* Search Bar */}
         <form onSubmit={handleSearch} className="mb-6 flex gap-2">
           <input
