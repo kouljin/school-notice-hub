@@ -42,6 +42,9 @@ export default function Home() {
   // New notices indicator status
   const [schoolStatus, setSchoolStatus] = useState<Record<string, Record<string, boolean>>>({});
 
+  // Tracks which school+board combos the user has already viewed {schoolId: {boardId: timestamp}}
+  const [viewedBoards, setViewedBoards] = useState<Record<string, Record<string, number>>>({});
+
   useEffect(() => {
     // Load custom schools from localStorage
     const saved = localStorage.getItem('customSchools');
@@ -54,6 +57,19 @@ export default function Home() {
         }
       } catch (e) {
         console.error('Failed to parse custom schools', e);
+      }
+    }
+
+    // Load viewed boards from localStorage
+    const savedViewed = localStorage.getItem('viewedBoards');
+    if (savedViewed) {
+      try {
+        const parsed = JSON.parse(savedViewed);
+        if (parsed && typeof parsed === 'object') {
+          setViewedBoards(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse viewedBoards', e);
       }
     }
   }, []);
@@ -127,6 +143,21 @@ export default function Home() {
     }
   }, [selectedSchoolId, selectedBoardId, currentPage, searchKeyword]);
 
+  // Helper to mark a specific school+board as viewed (stored in localStorage)
+  const markBoardAsViewed = useCallback((schoolId: string, boardId: string) => {
+    setViewedBoards(prev => {
+      const updated = {
+        ...prev,
+        [schoolId]: {
+          ...(prev[schoolId] || {}),
+          [boardId]: Date.now(),
+        },
+      };
+      localStorage.setItem('viewedBoards', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const fetchNotices = async (schoolId: string, boardId: string, page: number, search: string, forceRefresh = false) => {
     if (!schoolId || !boardId) return;
 
@@ -186,7 +217,9 @@ export default function Home() {
 
   const handleSchoolSelect = useCallback((schoolId: string) => {
     setSelectedSchoolId(schoolId);
-  }, []);
+    // Mark the default 'notice' board as viewed when switching to a new school
+    markBoardAsViewed(schoolId, 'notice');
+  }, [markBoardAsViewed]);
 
   const handleOpenAddSchoolModal = useCallback(() => {
     setPendingAction('add');
@@ -291,6 +324,7 @@ export default function Home() {
             onSelectSchool={handleSchoolSelect}
             onAddSchool={handleOpenAddSchoolModal}
             schoolStatus={schoolStatus}
+            viewedBoards={viewedBoards}
           />
         </div>
       </header>
@@ -322,6 +356,7 @@ export default function Home() {
                   key={board.id}
                   onClick={() => {
                     setSelectedBoardId(board.id);
+                    markBoardAsViewed(selectedSchoolId, board.id);
                     setCurrentPage(1); // Reset page on board change
                     setSearchKeyword('');
                     setSearchInput('');

@@ -15,8 +15,8 @@ export async function POST(request: Request) {
         const result: Record<string, Record<string, boolean>> = {};
         const now = new Date();
 
-        // 4 days in ms
-        const SEVEN_DAYS = 4 * 24 * 60 * 60 * 1000;
+        // 3 days in ms
+        const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
 
         // Create an array of promises to fetch all boards
         const fetchPromises = [];
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
                             const noticeDate = new Date(cleanDate);
                             if (!isNaN(noticeDate.getTime())) {
                                 const diff = now.getTime() - noticeDate.getTime();
-                                if (diff >= -86400000 && diff <= SEVEN_DAYS) {
+                                if (diff >= -86400000 && diff <= THREE_DAYS) {
                                     hasNew = true;
                                 }
                             }
