@@ -49,7 +49,9 @@ export async function GET(request: Request) {
         const ref = db.doc(`boards/${board.key}`);
         try {
             // no-store가 중요하다 — 데이터 캐시에서 읽으면 크론이 영원히 새 글을 못 본다.
-            const { notices } = parseNoticeList(await fetchHtml(listUrl(board), { cache: 'no-store' }));
+            const { notices, totalPages } = parseNoticeList(
+                await fetchHtml(listUrl(board), { cache: 'no-store' }),
+            );
 
             const prev = state.get(board.key) ?? {};
             const seen = new Set(prev.seenIds ?? []);
@@ -81,7 +83,9 @@ export async function GET(request: Request) {
                     enabled: true,
                     seeded: true,
                     seenIds,
-                    latest: notices, // 목록 API가 스크레이프 없이 즉시 응답할 캐시
+                    // 목록 API가 스크레이프 없이 즉시 응답하는 캐시 (src/lib/notices.ts)
+                    latest: notices,
+                    totalPages,
                     lastPolledAt: FieldValue.serverTimestamp(),
                     lastOkAt: FieldValue.serverTimestamp(),
                     failCount: 0,

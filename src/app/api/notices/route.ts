@@ -22,13 +22,26 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Invalid board parameters' }, { status: 400 });
     }
 
+    // 새로고침 버튼만 붙인다 — 캐시를 건너뛰고 학교 서버를 직접 읽는다.
+    const fresh = searchParams.get('fresh') === '1';
+
     try {
-        const { notices, currentPage, totalPages } = await loadNotices(input);
+        const { notices, currentPage, totalPages, source } = await loadNotices(input, { fresh });
+
         return NextResponse.json(
             { notices, pagination: { currentPage, totalPages } },
-            // 라우트 세그먼트 revalidate는 searchParams를 읽는 순간 무효가 된다.
-            // 실제로 캐시가 걸리는 곳은 이 헤더(CDN·브라우저)와 loadNotices 안의 fetch revalidate다.
-            { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } },
+            {
+                headers: {
+                    // 라우트 세그먼트 revalidate는 searchParams를 읽는 순간 무효가 된다.
+                    // 실제 캐시는 이 헤더(브라우저·CDN)와 loadNotices 안의 fetch revalidate가 담당한다.
+                    // max-age가 없으면 s-maxage는 CDN에만 적용되어 브라우저가 매번 재요청한다
+                    // — 학교 탭을 A→B→A로 오갈 때 불필요한 왕복이 생긴다.
+                    'Cache-Control': fresh
+                        ? 'no-store'
+                        : 'public, max-age=60, s-maxage=60, stale-while-revalidate=300',
+                    'X-Notice-Source': source, // 캐시가 실제로 타는지 확인용
+                },
+            },
         );
     } catch (error) {
         console.error('[notices] fetch failed', input, error);

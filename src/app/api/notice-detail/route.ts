@@ -27,7 +27,11 @@ export async function GET(request: Request) {
         });
 
         return NextResponse.json(parseNoticeDetail(html, sysId), {
-            headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
+            // max-age가 있어야 같은 공지를 닫았다 다시 열 때 네트워크 왕복이 사라진다.
+            // s-maxage만 있으면 CDN에서만 캐시되고 브라우저는 매번 다시 묻는다.
+            headers: {
+                'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+            },
         });
     } catch (error) {
         console.error('[notice-detail] fetch failed', { sysId, mi, bbsId, nttSn, error });

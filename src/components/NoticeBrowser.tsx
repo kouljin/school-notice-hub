@@ -77,7 +77,10 @@ export default function NoticeBrowser({
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) setCustomSchools(parsed);
+                // 비어 있으면 그대로 둔다. setCustomSchools 는 값이 같아도 새 배열 정체성을 만들고,
+                // 그게 allSchools → fetchNotices → 목록 효과로 번져 목록과 게시판 상태를
+                // 각각 한 번씩 더 조회하게 만든다(저장값이 "[]" 여도 발생했다).
+                if (Array.isArray(parsed) && parsed.length > 0) setCustomSchools(parsed);
             } catch {
                 console.error('customSchools 파싱 실패');
             }
@@ -95,7 +98,7 @@ export default function NoticeBrowser({
     }, []);
 
     const fetchNotices = useCallback(
-        async (schoolId: string, boardId: string, page: number, search: string) => {
+        async (schoolId: string, boardId: string, page: number, search: string, fresh = false) => {
             const school = allSchools.find((s) => s.id === schoolId);
             const board = school?.boards?.find((b) => b.id === boardId);
             if (!school) return;
@@ -112,6 +115,8 @@ export default function NoticeBrowser({
                     mi: board?.mi ?? school.mi,
                     bbsId: board?.bbsId ?? school.bbsId,
                 });
+
+                if (fresh) params.set('fresh', '1'); // 새로고침 버튼 — 캐시 건너뛰고 학교 서버 직접 조회
 
                 const res = await fetch(`/api/notices?${params}`);
                 if (!res.ok) throw new Error(`목록 조회 실패 ${res.status}`);
@@ -349,7 +354,13 @@ export default function NoticeBrowser({
                         </h2>
                         <button
                             onClick={() =>
-                                fetchNotices(selectedSchoolId, selectedBoardId, currentPage, searchKeyword)
+                                fetchNotices(
+                                    selectedSchoolId,
+                                    selectedBoardId,
+                                    currentPage,
+                                    searchKeyword,
+                                    true,
+                                )
                             }
                             disabled={loading}
                             className="p-2 text-gray-700 hover:text-blue-700 transition-colors disabled:opacity-50"
