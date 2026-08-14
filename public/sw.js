@@ -23,7 +23,8 @@ self.addEventListener('push', (event) => {
             body: data.body || '',
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            // 같은 게시판 알림이 여러 개 쌓이지 않도록 게시판 키로 묶는다.
+            // 서버가 공지 단위(게시판키_nttSn)로 준다 — 같은 게시판에서 여러 건이 올라와도
+            // 서로 덮어쓰지 않는다. 같은 공지가 재발송될 때만 대체된다.
             tag: data.tag || undefined,
             renotify: Boolean(data.tag),
             data: { url: data.url || '/' },

@@ -31,8 +31,15 @@ export function adminDb(): Firestore {
             ? getApp()
             : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
         cached = getFirestore(app);
-        // 선택 필드를 undefined로 두고 써도 죽지 않게 한다.
-        cached.settings({ ignoreUndefinedProperties: true });
+        try {
+            // 선택 필드를 undefined로 두고 써도 죽지 않게 한다.
+            cached.settings({ ignoreUndefinedProperties: true });
+        } catch {
+            // settings()는 Firestore 인스턴스당 한 번만 허용된다. cached는 모듈 단위인데
+            // firebase-admin의 앱 레지스트리는 프로세스 단위라, 같은 프로세스에서 이 모듈이
+            // 두 번 평가되면(dev HMR: 홈 SSR로 한 번, API 라우트로 또 한 번) 두 번째가 던진다.
+            // 이미 적용돼 있다는 뜻이니 무시하면 된다.
+        }
     }
 
     return cached;

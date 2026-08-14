@@ -28,6 +28,10 @@ export function parseKstDate(text: string): number | null {
 export function parseNoticeList(html: string): { notices: ParsedNotice[]; totalPages: number } {
     const $ = cheerio.load(html);
     const notices: ParsedNotice[] = [];
+    // 학교가 자기 글을 상단고정하면 페이지 1의 고정 영역과 아래 일반 목록에 같은 글이 두 번 나온다
+    // (이서고 가정통신문의 "학교 내선 번호 안내"가 그렇다). 그대로 두면 목록에 같은 공지가 두 줄
+    // 뜨고 NoticeList의 key={notice.id}까지 겹친다. 먼저 만난 쪽(=고정 위치)을 남긴다.
+    const seen = new Set<string>();
 
     $('.bbs_ListA tbody tr').each((_, el) => {
         const row = $(el);
@@ -36,6 +40,8 @@ export function parseNoticeList(html: string): { notices: ParsedNotice[]; totalP
         const link = row.find('td.bbs_tit a');
         const nttSn = link.attr('data-id');
         if (!nttSn) return; // "게시물이 없습니다" 같은 안내 행
+        if (seen.has(nttSn)) return;
+        seen.add(nttSn);
 
         notices.push({
             nttSn,

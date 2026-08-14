@@ -1,26 +1,53 @@
 // gyo6 파서 자체 점검. 실행: node --experimental-strip-types src/lib/gyo6/parse.check.ts
-// 픽스처는 실제 school.gyo6.net 응답을 저장한 것이다(청도중 공지사항).
+// 픽스처는 실제 school.gyo6.net 응답을 저장한 것이다.
+//   list.html        청도중 공지사항 — 고정 없는 평범한 게시판
+//   list-pinned.html 이서고 가정통신문 — 통합공지·자체고정·중복이 섞인 게시판
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseNoticeList, parseNoticeDetail } from './parse';
+import { parseNoticeList, parseNoticeDetail, type ParsedNotice } from './parse';
 
 const fixture = (name: string) =>
     readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), 'utf8');
+
+function assertRows(rows: ParsedNotice[], label: string): void {
+    assert.equal(new Set(rows.map((n) => n.nttSn)).size, rows.length, `${label}: nttSn 중복 없음`);
+
+    for (const n of rows) {
+        assert.match(n.nttSn, /^\d+$/, `${label}: nttSn 숫자 ${n.nttSn}`);
+        assert.ok(n.title.length > 0, `${label}: 제목 비어있지 않음`);
+        // 회귀 방지의 핵심 — em.mTit 라벨이 텍스트에 섞이면 안 된다.
+        assert.doesNotMatch(n.date, /등록일/, `${label}: date에 라벨 혼입 ${JSON.stringify(n.date)}`);
+        assert.doesNotMatch(n.author, /작성자/, `${label}: author에 라벨 혼입 ${JSON.stringify(n.author)}`);
+        assert.match(n.date, /^\d{4}[.\-]\d{2}[.\-]\d{2}$/, `${label}: date 형식 ${JSON.stringify(n.date)}`);
+    }
+}
 
 // --- 목록 ---
 const { notices, totalPages } = parseNoticeList(fixture('list.html'));
 
 assert.equal(notices.length, 10, '목록 10행');
 assert.equal(totalPages, 28, '끝 페이지 링크 goPaging(28)');
+assertRows(notices, 'list');
 
-for (const n of notices) {
-    assert.match(n.nttSn, /^\d+$/, `nttSn 숫자: ${n.nttSn}`);
-    assert.ok(n.title.length > 0, '제목 비어있지 않음');
-    // 회귀 방지의 핵심 — em.mTit 라벨이 텍스트에 섞이면 안 된다.
-    assert.doesNotMatch(n.date, /등록일/, `date에 라벨 혼입: ${JSON.stringify(n.date)}`);
-    assert.doesNotMatch(n.author, /작성자/, `author에 라벨 혼입: ${JSON.stringify(n.author)}`);
-    assert.match(n.date, /^\d{4}[.\-]\d{2}[.\-]\d{2}$/, `date 형식: ${JSON.stringify(n.date)}`);
-}
+// --- 목록: 상단고정이 섞인 게시판 ---
+// 16행(통합공지 3 + 자체고정 3 + 일반 10)이지만 자체고정된 16866764가 아래 일반 목록에도
+// 다시 나와 실제로는 15건이다. 중복이 살아남으면 목록에 같은 공지가 두 줄 뜨고
+// NoticeList의 key={notice.id}까지 겹친다.
+const pinned = parseNoticeList(fixture('list-pinned.html'));
+
+assert.equal(pinned.notices.length, 15, '16행 중 중복 1건 제거');
+assert.equal(pinned.totalPages, 17, '끝 페이지 링크 goPaging(17)');
+assertRows(pinned.notices, 'list-pinned');
+
+// 남는 쪽은 먼저 만난 고정 위치여야 한다 — 뒤엣것을 남기면 고정 순서가 무너진다.
+assert.equal(
+    pinned.notices.findIndex((n) => n.nttSn === '16866764'),
+    3,
+    '중복 글은 고정 영역(4번째)에 남는다',
+);
+// 통합공지도 일반 행과 같은 열 구조로 읽혀야 한다(첫 셀이 숫자가 아닐 뿐이다).
+assert.equal(pinned.notices[0].nttSn, '16918358', '첫 행은 통합공지');
+assert.equal(pinned.notices[0].date, '2026.07.16', '통합공지 등록일');
 
 // --- 상세 ---
 const { content, attachments } = parseNoticeDetail(fixture('notice.html'), 'cheongdoms');
@@ -60,4 +87,8 @@ const wrapped = parseNoticeDetail(
 assert.match(wrapped.content, /본문 살아있음/, 'form 안의 본문 보존');
 assert.doesNotMatch(wrapped.content, /javascript:/i, 'form action 제거');
 
-console.log(`OK — 목록 ${notices.length}건 / ${totalPages}페이지, 첨부 ${attachments.length}건, 살균 통과`);
+console.log(
+    `OK — 목록 ${notices.length}건 / ${totalPages}페이지, ` +
+        `고정 섞인 목록 ${pinned.notices.length}건(중복 1건 제거), ` +
+        `첨부 ${attachments.length}건, 살균 통과`,
+);

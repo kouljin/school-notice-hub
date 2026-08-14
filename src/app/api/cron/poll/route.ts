@@ -23,6 +23,16 @@ interface BoardState {
     seenIds?: string[];
 }
 
+// undici는 연결 실패를 전부 "fetch failed"로 던지고 진짜 이유(ECONNRESET·ENOTFOUND 등)는
+// cause에 담는다. 이걸 펼치지 않으면 Firestore에도 Vercel 로그에도 원인 없는 실패만 쌓여
+// 게시판이 왜 죽었는지 알 방법이 없다.
+function describeError(error: unknown): string {
+    if (!(error instanceof Error)) return String(error);
+    const cause = error.cause as { code?: string; message?: string } | undefined;
+    const detail = cause?.code ?? cause?.message;
+    return detail ? `${error.message} (${detail})` : error.message;
+}
+
 export async function GET(request: Request) {
     const denied = assertCron(request);
     if (denied) return denied;
@@ -94,9 +104,9 @@ export async function GET(request: Request) {
                 { merge: true },
             );
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = describeError(error);
             failures.push({ board: board.key, error: message });
-            console.error(`[cron/poll] ${board.key} 실패`, error);
+            console.error(`[cron/poll] ${board.key} 실패 — ${message}`, error);
 
             // 실패해도 문서는 남긴다 — failCount가 쌓이면 어느 게시판이 죽었는지 드러난다.
             batch.set(
