@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { School, Board } from '@/types';
 import { SCHOOLS } from '@/const/schools';
@@ -12,20 +12,17 @@ interface EditSchoolModalProps {
 }
 
 export default function EditSchoolModal({ isOpen, school, onClose, onSave, onDelete }: EditSchoolModalProps) {
-    const [boards, setBoards] = useState<Board[]>([]);
+    // 부모가 key={school.id}로 마운트를 갈아끼우므로 초기값 한 번이면 충분하다.
+    // 예전에는 효과 안에서 setState로 prop을 상태에 복사해 렌더가 한 번 더 돌았다.
+    const [boards, setBoards] = useState<Board[]>(() =>
+        school?.boards?.length
+            ? structuredClone(school.boards)
+            : school
+              ? [{ id: 'notice', name: '공지사항', mi: school.mi, bbsId: school.bbsId }]
+              : [],
+    );
 
-    // Check if the school is from the default list
     const isDefaultSchool = school ? SCHOOLS.some(s => s.id === school.id) : false;
-
-    useEffect(() => {
-        if (school && school.boards) {
-            // Deep copy to avoid mutating the original prop directly
-            setBoards(JSON.parse(JSON.stringify(school.boards)));
-        } else if (school) {
-            // Fallback if boards is undefined
-            setBoards([{ id: 'notice', name: '공지사항', mi: school.mi, bbsId: school.bbsId }]);
-        }
-    }, [school]);
 
     if (!isOpen || !school) return null;
 
@@ -47,7 +44,7 @@ export default function EditSchoolModal({ isOpen, school, onClose, onSave, onDel
                 newBoards[index] = { ...newBoards[index], mi, bbsId };
                 setBoards(newBoards);
             }
-        } catch (e) {
+        } catch {
             // Ignore invalid URLs while typing
         }
     };

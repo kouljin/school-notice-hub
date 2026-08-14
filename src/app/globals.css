@@ -8,19 +8,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* 한글 우선 시스템 폰트. 예전에는 Geist(라틴 전용) 두 벌을 받아놓고 body에서 Arial로
+     덮어써 버려서, 렌더를 막는 요청 두 개가 아무 효과 없이 나가고 있었다. */
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+    "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
 }

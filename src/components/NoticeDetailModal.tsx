@@ -1,8 +1,6 @@
 import { Notice } from '@/types';
-import { X, Share2, Paperclip, ExternalLink, Copy, Download, Link as LinkIcon } from 'lucide-react';
+import { X, Paperclip, ExternalLink, Download, Link as LinkIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { toPng } from 'html-to-image';
 import { SCHOOLS } from '@/const/schools';
 
 interface NoticeDetailModalProps {
@@ -22,23 +20,31 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (isOpen && notice) {
-            setLoading(true);
-            setError('');
-            setDetail(null);
+        if (!isOpen || !notice) return;
 
-            axios.post('/api/notice-detail', notice.linkParams)
-                .then((res) => {
-                    setDetail(res.data);
-                })
-                .catch((err) => {
-                    console.error(err);
-                    setError('Failed to load notice details.');
-                })
-                .finally(() => {
-                    setLoading(false);
-                });
-        }
+        const controller = new AbortController();
+        setLoading(true);
+        setError('');
+        setDetail(null);
+
+        fetch(`/api/notice-detail?${new URLSearchParams(notice.linkParams)}`, {
+            signal: controller.signal,
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error(`상세 조회 실패 ${res.status}`);
+                return res.json();
+            })
+            .then(setDetail)
+            .catch((err) => {
+                if (err.name === 'AbortError') return;
+                console.error(err);
+                setError('공지 내용을 불러오지 못했습니다.');
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
+
+        return () => controller.abort();
     }, [isOpen, notice]);
 
     if (!isOpen) return null;
@@ -61,7 +67,9 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
         if (!element) return;
 
         try {
-            // Using html-to-image which handles modern CSS better
+            // 이 버튼을 누를 때만 내려받는다 — 첫 화면 청크에 넣을 이유가 없다.
+            const { toPng } = await import('html-to-image');
+
             const dataUrl = await toPng(element, {
                 cacheBust: true,
                 backgroundColor: '#ffffff',
@@ -94,37 +102,6 @@ export default function NoticeDetailModal({ notice, isOpen, onClose }: NoticeDet
         const publicUrl = `https://school.gyo6.net/${sysId}/na/ntt/selectNttList.do?mi=${mi}&bbsId=${bbsId}`;
         const shareUrl = `https://share.naver.com/web/shareView.nhn?url=${encodeURIComponent(publicUrl)}&title=${encodeURIComponent(notice.title)}`;
         window.open(shareUrl, 'naver_share', 'width=500,height=600');
-    };
-
-    const copyContent = async (showAlert = true) => {
-        if (!detail) return;
-
-        const contentWithTitle = `
-            <h2>${notice.title}</h2>
-            <p><strong>작성자:</strong> ${notice.author} | <strong>작성일:</strong> ${notice.date}</p>
-            <hr />
-            ${detail.content}
-            <br />
-            <p>출처: ${notice.schoolId} 공지사항</p>
-        `;
-
-        const blob = new Blob([contentWithTitle], { type: 'text/html' });
-        const textBlob = new Blob([contentWithTitle.replace(/<[^>]*>?/gm, '')], { type: 'text/plain' });
-
-        try {
-            await navigator.clipboard.write([
-                new ClipboardItem({
-                    'text/html': blob,
-                    'text/plain': textBlob,
-                }),
-            ]);
-            if (showAlert) alert('내용이 복사되었습니다! 원하시는 곳에 붙여넣기 하세요.');
-        } catch (err) {
-            console.error('Failed to copy html: ', err);
-            // Fallback
-            await navigator.clipboard.writeText(contentWithTitle.replace(/<[^>]*>?/gm, ''));
-            if (showAlert) alert('텍스트 내용이 복사되었습니다! (이미지 등은 복사되지 않았을 수 있습니다)');
-        }
     };
 
     return (

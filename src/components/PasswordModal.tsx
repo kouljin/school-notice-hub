@@ -16,8 +16,16 @@ export default function PasswordModal({ isOpen, onClose, onSuccess }: PasswordMo
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Hardcoded password as requested by user
-        if (password === 'hope85') {
+        // ponytail: 인증이 아니라 실수 방지용 잠금이다 — 지키는 대상이 각자 브라우저의
+        // localStorage뿐이라 우회해도 얻는 게 없다. NEXT_PUBLIC_ 이라 번들에도 실린다.
+        // 설정이 Firestore로 옮겨가는 시점에 서버에서 검사하도록 바꿔야 한다.
+        const expected = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+        if (!expected) {
+            setError('관리자 비밀번호가 설정되지 않았습니다 (NEXT_PUBLIC_ADMIN_PASSWORD).');
+            return;
+        }
+
+        if (password === expected) {
             setError('');
             setPassword('');
             onSuccess();

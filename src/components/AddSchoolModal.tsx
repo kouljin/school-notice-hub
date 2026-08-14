@@ -44,7 +44,7 @@ export default function AddSchoolModal({ isOpen, onClose, onAdd }: AddSchoolModa
                 newBoards[index] = { ...newBoards[index], mi, bbsId };
                 setBoards(newBoards);
             }
-        } catch (err) {
+        } catch {
             // Ignore invalid URLs while typing or pasting
         }
     };

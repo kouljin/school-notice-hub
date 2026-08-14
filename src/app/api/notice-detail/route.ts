@@ -1,127 +1,36 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { ORIGIN, fetchHtml, isSysId, isNumericId } from '@/lib/gyo6/fetch';
+import { parseNoticeDetail } from '@/lib/gyo6/parse';
 
-// Revalidate is not natively supported for POST requests.
-// Since the frontend POSTs to this endpoint, Next.js App Router does not cache POST requests by default.
-// We can either change the frontend to use GET for details or implement custom memory caching.
-// For now, I will add memory caching since the external site expects POST or we are sending form data, wait we are sending a POST from frontend.
+// GET인 이유: 이전에는 POST라 CDN이 캐시할 수 없었고, 그래서 라우트 안에 모듈 스코프 Map을
+// 두고 직접 캐싱했다. 그 Map은 만료 항목을 회수하지 않아 무한히 커졌고(웜 인스턴스에서 실제 누수),
+// 인스턴스마다 따로 있어 적중률도 1/N이었다. 캐싱은 여기 Cache-Control 한 줄에 맡긴다.
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const sysId = searchParams.get('sysId');
+    const mi = searchParams.get('mi');
+    const bbsId = searchParams.get('bbsId');
+    const nttSn = searchParams.get('nttSn');
 
-// Actually our frontend does: axios.post('/api/notice-detail', notice.linkParams)
-// I will implement a simple in-memory cache variable here.
-
-const detailCache: Record<string, { data: any, timestamp: number }> = {};
-const CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
-
-export async function POST(request: Request) {
-    const body = await request.json();
-    const { sysId, nttSn, mi, bbsId } = body;
-
-    if (!sysId || !nttSn || !mi || !bbsId) {
-        return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    if (!isSysId(sysId) || !isNumericId(mi) || !isNumericId(bbsId) || !isNumericId(nttSn)) {
+        return NextResponse.json({ error: 'Invalid notice parameters' }, { status: 400 });
     }
 
-    const cacheKey = `${sysId}-${nttSn}-${mi}-${bbsId}`;
-    const cached = detailCache[cacheKey];
-    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION_MS)) {
-        console.log(`[Cache Hit] notice-detail: ${cacheKey}`);
-        return NextResponse.json(cached.data);
-    }
+    const url = `${ORIGIN}/${sysId}/na/ntt/selectNttInfo.do?mi=${mi}&bbsId=${bbsId}&nttSn=${nttSn}`;
 
     try {
-        const url = `https://school.gyo6.net/${sysId}/na/ntt/selectNttInfo.do?mi=${mi}&bbsId=${bbsId}&nttSn=${nttSn}`;
-
-        // The site expects form-urlencoded data for the POST body
-        const params = new URLSearchParams();
-        params.append('sysId', sysId);
-
-        const response = await axios.post(url, params, {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            responseType: 'text',
+        // 원본 사이트가 폼 인코딩 POST를 기대한다(쿼리 파라미터만으로는 본문이 비어 돌아온다).
+        const html = await fetchHtml(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ sysId }),
         });
 
-        const $ = cheerio.load(response.data);
-
-        // Extract content
-        // The content is usually in a div with class 'subContent' or specific table structure
-        // Based on view2.html, the content is in .subContent, but looking deeper:
-        // It seems to be in a table structure or overlapping divs.
-        // Let's look at view2.html again. It has <div class="subContent"> then some scripts, then <div class="bbs_viewA"> maybe?
-        // I need to be careful with selectors.
-        // In view2.html (which I have locally, I can check if I am unsure, but I removed it).
-        // Let's assume standard structure: usually .bbs_viewA or similar.
-        // Wait, I should double check the selector. 
-        // In the file view2.html I saw earlier:
-        // It had "subContent".
-        // I will try to select `.subContent` or `.bbs_ViewA`.
-
-        // Actually, looking at the common pattern for these sites, the content is often in `.bbs_view` or similar.
-        // I'll grab the whole `.subContent` but remove scripts and buttons.
-
-        // Let's refine the selector.
-        // I'll return the HTML of the content area.
-
-        // Check for xFreeUploader JS attachments
-        // Pattern: wFileUpload.fileAttachAddTxt("name", "url", ...)
-        const html = response.data; // Cheerio loads this, but we can search the raw string too or script tags
-        const attachments: any[] = [];
-
-        $('script').each((_, script) => {
-            const scriptContent = $(script).html() || '';
-            const regex = /fileAttachAddTxt\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"/g;
-            let match;
-            while ((match = regex.exec(scriptContent)) !== null) {
-                const name = match[1];
-                const href = match[2];
-                if (name && href) {
-                    attachments.push({ name, href: `https://school.gyo6.net${href}` });
-                }
-            }
+        return NextResponse.json(parseNoticeDetail(html, sysId), {
+            headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
         });
-
-        // Also check if there are any standard links in .file_list just in case
-        $('.file_list a').each((_, element) => {
-            const name = $(element).text().trim();
-            const href = $(element).attr('href');
-            if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
-                attachments.push({ name, href: `https://school.gyo6.net${href}` });
-            }
-        });
-
-        // Remove scripts and styles
-        $('script').remove();
-        $('style').remove();
-        $('.btnWrap').remove();
-        $('.btns').remove();
-        $('.bbsV_atchmnfl').remove(); // Remove the school's broken attachment UI containing the xFreeUploader placeholder
-        $('.bbsV_prne').remove(); // Remove prev/next links
-        // Convert all image relative paths to absolute paths to fix broken images
-        const contentArea = $('.bbs_ViewA').length ? $('.bbs_ViewA') : $('.subContent');
-        contentArea.find('img').each((_, img) => {
-            const src = $(img).attr('src');
-            if (src && src.startsWith('/')) {
-                $(img).attr('src', `https://school.gyo6.net${src}`);
-            } else if (src && !src.startsWith('http') && !src.startsWith('data:')) {
-                $(img).attr('src', `https://school.gyo6.net/${sysId}/na/ntt/${src}`);
-            }
-        });
-
-        let contentHtml = contentArea.html() || '';
-
-        const responseData = { content: contentHtml, attachments };
-
-        // Save to cache
-        detailCache[cacheKey] = {
-            data: responseData,
-            timestamp: Date.now()
-        };
-
-        return NextResponse.json(responseData);
-
     } catch (error) {
-        console.error('Error fetching notice detail:', error);
-        return NextResponse.json({ error: 'Failed to fetch notice detail' }, { status: 500 });
+        console.error('[notice-detail] fetch failed', { sysId, mi, bbsId, nttSn, error });
+        return NextResponse.json({ error: 'Failed to fetch notice detail' }, { status: 502 });
     }
 }
